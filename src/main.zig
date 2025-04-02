@@ -3,6 +3,7 @@ const http = std.http;
 
 const xev = @import("xev");
 const zo = @import("zo");
+const coro = zo;
 const aio = zo.asyncio;
 
 pub fn main() !void {
@@ -31,16 +32,21 @@ pub fn main() !void {
     aio.initEnv(.{
         .executor = executor,
         .stack_allocator = allocator,
-        .default_stack_size = 1024 * 4,
+        .default_stack_size = 1024 * 8,
     });
 
-    try aio.run(executor, mainTask, .{}, null);
+    try aio.run(executor, mainTask, .{allocator}, null);
 }
 
-fn mainTask() !void {
-    const t1 = try zo.xasync(task, .{ "Task-1", 5 }, null);
-    const t2 = try zo.xasync(task, .{ "Task-2", 1 }, null);
-    const t3 = try zo.xasync(task, .{ "Task-3", 3 }, null);
+fn mainTask(allocator: std.mem.Allocator) !void {
+    var wg = WaitGroup.init(allocator);
+    defer wg.deinit();
+
+    wg.add(3);
+
+    const t1 = try zo.xasync(task, .{ &wg, "Task-1", 5 }, null);
+    const t2 = try zo.xasync(task, .{ &wg, "Task-2", 1 }, null);
+    const t3 = try zo.xasync(task, .{ &wg, "Task-3", 3 }, null);
 
     defer {
         t1.deinit();
@@ -48,13 +54,120 @@ fn mainTask() !void {
         t3.deinit();
     }
 
-    _ = try zo.xawait(t1);
-    _ = try zo.xawait(t2);
-    _ = try zo.xawait(t3);
+    wg.wait();
 }
 
-fn task(name: []const u8, delay_ms: u64) !void {
+fn task(wg: *WaitGroup, name: []const u8, delay_ms: u64) !void {
+    defer wg.done();
+
     std.debug.print("{s} starting, will sleep for {}ms\n", .{ name, delay_ms });
     try aio.sleep(null, delay_ms);
     std.debug.print("{s} completed after {}ms\n", .{ name, delay_ms });
 }
+
+/// WaitGroup waits for a collection of coroutines to finish.
+/// Similar to Go's sync.WaitGroup, it provides a way to wait until
+/// all started coroutines complete their work.
+pub const WaitGroup = struct {
+    counter: std.atomic.Value(usize),
+    mutex: std.Thread.Mutex,
+    waiters: std.ArrayList(*WaitingCoro),
+    allocator: std.mem.Allocator,
+
+    const WaitingCoro = struct {
+        frame: coro.Frame,
+        signaled: bool,
+    };
+
+    /// Initialize a new WaitGroup
+    pub fn init(allocator: std.mem.Allocator) WaitGroup {
+        return .{
+            .counter = std.atomic.Value(usize).init(0),
+            .mutex = .{},
+            .waiters = std.ArrayList(*WaitingCoro).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    /// Clean up resources used by the WaitGroup
+    pub fn deinit(self: *WaitGroup) void {
+        self.waiters.deinit();
+    }
+
+    /// Add adds delta, which may be negative, to the WaitGroup counter.
+    /// If the counter becomes zero, all coroutines blocked on Wait are released.
+    pub fn add(self: *WaitGroup, delta: usize) void {
+        const prev = self.counter.fetchAdd(delta, .monotonic);
+        const new_count = prev + delta;
+
+        // If counter is now zero, wake up all waiting coroutines
+        if (new_count == 0) {
+            self.wakeWaiters();
+        }
+    }
+
+    /// Increment the WaitGroup counter by one
+    pub fn inc(self: *WaitGroup) void {
+        _ = self.counter.fetchAdd(1, .monotonic);
+    }
+
+    /// Decrement the WaitGroup counter by one
+    /// If the counter becomes zero, all coroutines blocked on Wait are released
+    pub fn done(self: *WaitGroup) void {
+        const prev = self.counter.fetchSub(1, .monotonic);
+
+        // If this was the last counter, wake up all waiting coroutines
+        if (prev == 1) {
+            self.wakeWaiters();
+        } else if (prev == 0) {
+            @panic("WaitGroup counter negative");
+        }
+    }
+
+    /// Wait blocks until the WaitGroup counter is zero
+    pub fn wait(self: *WaitGroup) void {
+        // Quick path: if counter is already 0, return immediately
+        if (self.counter.load(.monotonic) == 0) {
+            return;
+        }
+
+        // Allocate a waiter structure
+        const waiter = self.allocator.create(WaitingCoro) catch @panic("OOM in WaitGroup.wait");
+        defer self.allocator.destroy(waiter);
+
+        // Initialize the waiter
+        waiter.* = .{
+            .frame = coro.xframe(),
+            .signaled = false,
+        };
+
+        // Add to waiters list
+        self.mutex.lock();
+        self.waiters.append(waiter) catch @panic("OOM in WaitGroup.wait");
+        self.mutex.unlock();
+
+        // Check counter again (in case it became 0 while we were setting up)
+        if (self.counter.load(.monotonic) == 0) {
+            self.wakeWaiters();
+        }
+
+        // Suspend until signaled
+        while (!waiter.signaled) {
+            coro.xsuspend();
+        }
+    }
+
+    fn wakeWaiters(self: *WaitGroup) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
+        // Mark all waiters as signaled and resume them
+        for (self.waiters.items) |waiter| {
+            waiter.signaled = true;
+            coro.xresume(waiter.frame);
+        }
+
+        // Clear the waiters list
+        self.waiters.clearRetainingCapacity();
+    }
+};
