@@ -12,10 +12,10 @@ pub fn build(b: *std.Build) void {
 
     // add zigcoro dependency
     const zigcoro_dep = b.dependency("zigcoro", .{});
-    const zigcoro = zigcoro_dep.module("libcoro");
-    exe_mod.addImport("zigcoro", zigcoro);
+    const zo = zigcoro_dep.module("libcoro");
+    exe_mod.addImport("zo", zo);
 
-    // add xev dependency
+    // add libxev dependency
     const xev_dep = b.dependency("libxev", .{});
     const xev = xev_dep.module("xev");
     exe_mod.addImport("xev", xev);

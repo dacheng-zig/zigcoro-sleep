@@ -2,8 +2,8 @@ const std = @import("std");
 const http = std.http;
 
 const xev = @import("xev");
-const co = @import("zigcoro");
-const aio = co.asyncio;
+const zo = @import("zo");
+const aio = zo.asyncio;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -38,9 +38,9 @@ pub fn main() !void {
 }
 
 fn mainTask() !void {
-    const t1 = try co.xasync(task, .{ "Task-1", 5 }, null);
-    const t2 = try co.xasync(task, .{ "Task-2", 1 }, null);
-    const t3 = try co.xasync(task, .{ "Task-3", 3 }, null);
+    const t1 = try zo.xasync(task, .{ "Task-1", 5 }, null);
+    const t2 = try zo.xasync(task, .{ "Task-2", 1 }, null);
+    const t3 = try zo.xasync(task, .{ "Task-3", 3 }, null);
 
     defer {
         t1.deinit();
@@ -48,9 +48,9 @@ fn mainTask() !void {
         t3.deinit();
     }
 
-    _ = try co.xawait(t1);
-    _ = try co.xawait(t2);
-    _ = try co.xawait(t3);
+    _ = try zo.xawait(t1);
+    _ = try zo.xawait(t2);
+    _ = try zo.xawait(t3);
 }
 
 fn task(name: []const u8, delay_ms: u64) !void {
