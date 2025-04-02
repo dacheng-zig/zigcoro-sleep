@@ -1,46 +1,60 @@
-//! By convention, main.zig is where your main function lives in the case that
-//! you are building an executable. If you are making a library, the convention
-//! is to delete this file and start with root.zig instead.
+const std = @import("std");
+const http = std.http;
+
+const xev = @import("xev");
+const co = @import("zigcoro");
+const aio = co.asyncio;
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var tp = try allocator.create(xev.ThreadPool);
+    tp.* = xev.ThreadPool.init(.{});
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    var loop = try allocator.create(xev.Loop);
+    loop.* = try xev.Loop.init(.{ .thread_pool = tp });
 
-    try bw.flush(); // Don't forget to flush!
+    const executor = try allocator.create(aio.Executor);
+    executor.* = aio.Executor.init(loop);
+
+    defer {
+        loop.deinit();
+        tp.shutdown();
+        tp.deinit();
+        allocator.destroy(tp);
+        allocator.destroy(loop);
+        allocator.destroy(executor);
+    }
+
+    aio.initEnv(.{
+        .executor = executor,
+        .stack_allocator = allocator,
+        .default_stack_size = 1024 * 4,
+    });
+
+    try aio.run(executor, mainTask, .{}, null);
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn mainTask() !void {
+    const t1 = try co.xasync(task, .{ "Task-1", 5 }, null);
+    const t2 = try co.xasync(task, .{ "Task-2", 1 }, null);
+    const t3 = try co.xasync(task, .{ "Task-3", 3 }, null);
+
+    defer {
+        t1.deinit();
+        t2.deinit();
+        t3.deinit();
+    }
+
+    _ = try co.xawait(t1);
+    _ = try co.xawait(t2);
+    _ = try co.xawait(t3);
 }
 
-test "use other module" {
-    try std.testing.expectEqual(@as(i32, 150), lib.add(100, 50));
+fn task(name: []const u8, delay_ms: u64) !void {
+    std.debug.print("{s} starting, will sleep for {}ms\n", .{ name, delay_ms });
+    try aio.sleep(null, delay_ms);
+    std.debug.print("{s} completed after {}ms\n", .{ name, delay_ms });
 }
-
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
-}
-
-const std = @import("std");
-
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("zigcoro_sleep_lib");
