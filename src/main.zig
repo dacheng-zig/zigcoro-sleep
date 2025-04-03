@@ -42,16 +42,35 @@ fn mainTask(allocator: std.mem.Allocator) !void {
     var wg = WaitGroup.init(allocator);
     defer wg.deinit();
 
-    wg.add(3);
+    const num_tasks: usize = 5;
 
-    const t1 = try zo.xasync(task, .{ &wg, "Task-1", 5 }, null);
-    const t2 = try zo.xasync(task, .{ &wg, "Task-2", 1 }, null);
-    const t3 = try zo.xasync(task, .{ &wg, "Task-3", 3 }, null);
-
+    const tasks = try allocator.alloc(zo.Frame, num_tasks);
     defer {
-        t1.deinit();
-        t2.deinit();
-        t3.deinit();
+        // deinit coroutine stack
+        for (tasks) |t| {
+            t.deinit();
+        }
+        // then free tasks array
+        allocator.free(tasks);
+    }
+
+    const names = try allocator.alloc([]const u8, num_tasks);
+    defer {
+        // free each name string
+        for (names) |name| {
+            allocator.free(name);
+        }
+        // then free names array
+        allocator.free(names);
+    }
+
+    for (0..num_tasks) |i| {
+        wg.inc();
+
+        names[i] = try std.fmt.allocPrint(allocator, "Task-{}", .{i});
+        const ms: u64 = if (i < num_tasks / 2) 20 else 10;
+        const t = try zo.xasync(task, .{ &wg, names[i], ms }, null);
+        tasks[i] = t.frame();
     }
 
     wg.wait();
