@@ -2,9 +2,9 @@ const std = @import("std");
 const http = std.http;
 
 const xev = @import("xev");
-const zo = @import("zo");
-const coro = zo;
-const aio = zo.asyncio;
+const ziro = @import("ziro");
+const coro = ziro;
+const aio = ziro.asyncio;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -39,12 +39,13 @@ pub fn main() !void {
 }
 
 fn mainTask(allocator: std.mem.Allocator) !void {
+    // init a WaitGroup
     var wg = WaitGroup.init(allocator);
     defer wg.deinit();
 
     const num_tasks: usize = 5;
 
-    const tasks = try allocator.alloc(zo.Frame, num_tasks);
+    const tasks = try allocator.alloc(ziro.Frame, num_tasks);
     defer {
         // deinit coroutine stack
         for (tasks) |t| {
@@ -64,15 +65,19 @@ fn mainTask(allocator: std.mem.Allocator) !void {
         allocator.free(names);
     }
 
+    // launch a bunch of tasks
     for (0..num_tasks) |i| {
         wg.inc();
 
         names[i] = try std.fmt.allocPrint(allocator, "Task-{}", .{i});
         const ms: u64 = if (i < num_tasks / 2) 20 else 10;
-        const t = try zo.xasync(task, .{ &wg, names[i], ms }, null);
+        // launch a coroutine
+        const t = try ziro.xasync(task, .{ &wg, names[i], ms }, null);
+        // add the coroutine to array
         tasks[i] = t.frame();
     }
 
+    // wait for all coroutines done
     wg.wait();
 }
 
