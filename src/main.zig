@@ -70,9 +70,9 @@ fn mainTask(allocator: std.mem.Allocator) !void {
         wg.inc();
 
         names[i] = try std.fmt.allocPrint(allocator, "Task-{}", .{i});
-        const ms: u64 = if (i < num_tasks / 2) 20 else 10;
+        const delay_ms: u64 = if (i < num_tasks / 2) 20 else 10;
         // launch a coroutine
-        const t = try ziro.xasync(task, .{ &wg, names[i], ms }, null);
+        const t = try ziro.xasync(task, .{ &wg, names[i], delay_ms }, null);
         // add the coroutine to array
         tasks[i] = t.frame();
     }
