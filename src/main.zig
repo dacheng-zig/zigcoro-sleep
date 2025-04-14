@@ -3,14 +3,16 @@ const http = std.http;
 
 const xev = @import("xev");
 const ziro = @import("ziro");
-const coro = ziro;
 const aio = ziro.asyncio;
+
+const coro = ziro; // used by WaitGroup
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    // init thread pool (used by loop)
     var tp = try allocator.create(xev.ThreadPool);
     defer {
         tp.shutdown();
@@ -19,6 +21,7 @@ pub fn main() !void {
     }
     tp.* = xev.ThreadPool.init(.{});
 
+    // init event loop (xev)
     var loop = try allocator.create(xev.Loop);
     defer {
         loop.deinit();
@@ -26,16 +29,19 @@ pub fn main() !void {
     }
     loop.* = try xev.Loop.init(.{ .thread_pool = tp });
 
+    // init async io executor
     const executor = try allocator.create(aio.Executor);
     defer allocator.destroy(executor);
     executor.* = aio.Executor.init(loop);
 
+    // init async io
     aio.initEnv(.{
         .executor = executor,
         .stack_allocator = allocator,
         .default_stack_size = 1024 * 8,
     });
 
+    // launch main coroutine
     try aio.run(executor, mainTask, .{allocator}, null);
 }
 
