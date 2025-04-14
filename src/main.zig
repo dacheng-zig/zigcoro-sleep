@@ -12,22 +12,23 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var tp = try allocator.create(xev.ThreadPool);
-    tp.* = xev.ThreadPool.init(.{});
-
-    var loop = try allocator.create(xev.Loop);
-    loop.* = try xev.Loop.init(.{ .thread_pool = tp });
-
-    const executor = try allocator.create(aio.Executor);
-    executor.* = aio.Executor.init(loop);
-
     defer {
-        loop.deinit();
         tp.shutdown();
         tp.deinit();
         allocator.destroy(tp);
-        allocator.destroy(loop);
-        allocator.destroy(executor);
     }
+    tp.* = xev.ThreadPool.init(.{});
+
+    var loop = try allocator.create(xev.Loop);
+    defer {
+        loop.deinit();
+        allocator.destroy(loop);
+    }
+    loop.* = try xev.Loop.init(.{ .thread_pool = tp });
+
+    const executor = try allocator.create(aio.Executor);
+    defer allocator.destroy(executor);
+    executor.* = aio.Executor.init(loop);
 
     aio.initEnv(.{
         .executor = executor,
