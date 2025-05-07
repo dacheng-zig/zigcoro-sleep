@@ -10,8 +10,8 @@
             .hash = "libxev-0.0.0-86vtc-zkEgB7uv1i0Sa6ytJETZQi_lHJrImu9mLb9moi",
         },
         .ziro = .{
-            .url = "git+https://github.com/dacheng-zig/ziro#d9d47b976b0c6ee837872f83d6bb79a6f901971d",
-            .hash = "ziro-0.0.0-gJN_2PtpAQAWUnDZDadJ8KDh5_nM4upcuykIt_Xexpua",
+            .url = "git+https://github.com/dacheng-zig/ziro#286f57c1397bdc50c2d3b9a8ad3cfab31e86a6c5",
+            .hash = "ziro-0.0.0-gJN_2IlvAQArqlbWYialtNmVHiW4b0sjp5xPPE891RVt",
         },
     },
 

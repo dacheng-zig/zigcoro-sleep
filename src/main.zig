@@ -43,7 +43,7 @@ pub fn main() !void {
 }
 
 fn mainTask(allocator: std.mem.Allocator, exec: *ziro.Executor) !void {
-    var wg = WaitGroup.init(exec);
+    var wg = ziro.WaitGroup.init(exec);
 
     const num_tasks: usize = 4;
 
@@ -68,61 +68,9 @@ fn mainTask(allocator: std.mem.Allocator, exec: *ziro.Executor) !void {
     wg.wait();
 }
 
-fn task(wg: *WaitGroup, id: u32, delay_ms: u64) !void {
+fn task(wg: *ziro.WaitGroup, id: u32, delay_ms: u64) !void {
     defer wg.done();
 
     try aio.sleep(null, delay_ms);
     std.debug.print("Task-{} completed after {}ms\n", .{ id, delay_ms });
 }
-
-/// WaitGroup waits for a collection of coroutines to finish.
-pub const WaitGroup = struct {
-    notifier: ziro.Condition,
-    notified: bool = false,
-    counter: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
-
-    /// Initialize a new WaitGroup
-    pub fn init(exec: *ziro.Executor) WaitGroup {
-        return .{
-            .notifier = ziro.Condition.init(exec),
-        };
-    }
-
-    /// add delta to the WaitGroup counter.
-    pub fn add(self: *WaitGroup, delta: usize) void {
-        _ = self.counter.fetchAdd(delta, .monotonic);
-    }
-
-    /// Increment the WaitGroup counter by one
-    pub fn inc(self: *WaitGroup) void {
-        _ = self.counter.fetchAdd(1, .monotonic);
-    }
-
-    /// Decrement the WaitGroup counter by one
-    pub fn done(self: *WaitGroup) void {
-        const prev = self.counter.fetchSub(1, .monotonic);
-
-        // If this was the last counter, wake up all waiting coroutines
-        if (prev == 1) {
-            self.wake();
-        } else if (prev == 0) {
-            @panic("WaitGroup counter negative");
-        }
-    }
-
-    /// suspend until notified due to the counter becomes zero
-    pub fn wait(self: *WaitGroup) void {
-        // quick path
-        if (self.counter.load(.monotonic) == 0) {
-            return;
-        }
-
-        while (!self.notified) {
-            self.notifier.wait();
-        }
-    }
-
-    fn wake(self: *WaitGroup) void {
-        self.notified = true;
-    }
-};
