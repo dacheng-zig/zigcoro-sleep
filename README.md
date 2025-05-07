@@ -1,8 +1,8 @@
-# zigcoro-sleep
+# ziro-sleep
 
-This is a coroutine sleep example, powered by zigcoro, which is a coroutine engine.
+This is a coroutine sleep example, powered by ziro, which is a coroutine engine.
 
-> zigcoro: https://github.com/rsepassi/zigcoro
+> ziro: https://github.com/dacheng-zig/ziro
 >
 > libxev: https://github.com/mitchellh/libxev
 

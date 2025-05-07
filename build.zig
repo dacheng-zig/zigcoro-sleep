@@ -10,9 +10,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // add zigcoro dependency
-    const zigcoro_dep = b.dependency("zigcoro", .{});
-    const ziro = zigcoro_dep.module("libcoro");
+    // add ziro dependency
+    const ziro_dep = b.dependency("ziro", .{});
+    const ziro = ziro_dep.module("ziro");
     exe_mod.addImport("ziro", ziro);
 
     // add libxev dependency
