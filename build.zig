@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
     exe_mod.addImport("xev", xev);
 
     const exe = b.addExecutable(.{
-        .name = "zigcoro_sleep",
+        .name = "ziro_sleep",
         .root_module = exe_mod,
     });
 
