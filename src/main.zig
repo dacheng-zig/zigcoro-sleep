@@ -39,11 +39,11 @@ pub fn main() !void {
         .default_stack_size = 1024 * 8,
     });
 
-    try aio.run(executor, mainTask, .{ allocator, &executor.exec }, null);
+    try aio.run(executor, mainTask, .{allocator}, null);
 }
 
-fn mainTask(allocator: std.mem.Allocator, exec: *ziro.Executor) !void {
-    var wg = ziro.WaitGroup.init(exec);
+fn mainTask(allocator: std.mem.Allocator) !void {
+    var wg = ziro.WaitGroup.init();
 
     const num_tasks: usize = 4;
 
