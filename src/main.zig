@@ -54,7 +54,7 @@ fn mainTask(allocator: std.mem.Allocator, exec: *ziro.Executor) !void {
     }
 
     for (0..num_tasks) |i| {
-        wg.inc();
+        wg.start();
 
         const id: u32 = @as(u32, @intCast(i + 1));
         const delay_ms: u64 = if (i < num_tasks / 2) 2 else 1;
@@ -63,13 +63,13 @@ fn mainTask(allocator: std.mem.Allocator, exec: *ziro.Executor) !void {
         tasks[i] = t.frame();
     }
 
-    std.debug.print("---- all worker coroutines dispatched. ----\n", .{});
+    std.debug.print("------------------------\n", .{});
 
     wg.wait();
 }
 
 fn task(wg: *ziro.WaitGroup, id: u32, delay_ms: u64) !void {
-    defer wg.done();
+    defer wg.finish();
 
     try aio.sleep(null, delay_ms);
     std.debug.print("Task-{} completed after {}ms\n", .{ id, delay_ms });
