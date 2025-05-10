@@ -43,7 +43,7 @@ pub fn main() !void {
 }
 
 fn mainTask(allocator: std.mem.Allocator) !void {
-    var wg = ziro.WaitGroup.init();
+    var wg = ziro.sync.WaitGroup.init();
 
     const num_tasks: usize = 4;
 
@@ -68,7 +68,7 @@ fn mainTask(allocator: std.mem.Allocator) !void {
     wg.wait();
 }
 
-fn task(wg: *ziro.WaitGroup, id: u32, delay_ms: u64) !void {
+fn task(wg: *ziro.sync.WaitGroup, id: u32, delay_ms: u64) !void {
     defer wg.finish();
 
     try aio.sleep(null, delay_ms);
